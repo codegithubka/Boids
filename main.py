@@ -22,8 +22,7 @@ from flock import SimulationParams
 def main():
     """Run the Boids simulation with default parameters."""
     
-    # Configure simulation parameters
-    # Based on Cornell reference, tuned for 800x600 screen
+    # Configure simulation parameters (tuned through Steps 10a-10c)
     params = SimulationParams(
         # Simulation bounds
         width=800,
@@ -44,15 +43,24 @@ def main():
         
         # Boundary handling
         margin=75,
-        turn_factor=0.2
+        turn_factor=0.2,
+        
+        # Predator parameters (Tier 2)
+        predator_detection_range=100,
+        predator_avoidance_strength=0.5,
+        predator_speed=2.5,
+        predator_hunting_strength=0.05
     )
     
-    # Run simulation
+    # Run simulation with KDTree optimization (Tier 1)
+    # Press P to toggle predator (Tier 2)
     run_simulation(
-        num_boids=200,
+        num_boids=50,
         params=params,
-        fps=100,
-        show_fps=True
+        fps=60,
+        show_fps=True,
+        use_kdtree=True,
+        enable_predator=False  # Start without predator; press P to toggle
     )
 
 

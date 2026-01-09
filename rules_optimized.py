@@ -299,3 +299,117 @@ def compute_all_rules_kdtree(
         dvy += (avg_vy - boid_vel[1]) * alignment_factor
     
     return (dvx, dvy)
+
+
+def compute_predator_avoidance_kdtree(
+    boid_index: int,
+    flock_state: FlockState,
+    predator_x: float,
+    predator_y: float,
+    detection_range: float,
+    avoidance_strength: float
+) -> Tuple[float, float]:
+    """
+    Compute predator avoidance steering using KDTree-indexed positions.
+    
+    This is the fourth rule, added for Tier 2. Provides same interface
+    as compute_predator_avoidance but uses FlockState for consistency
+    with other optimized rules.
+    
+    Args:
+        boid_index: Index of the current boid
+        flock_state: FlockState with spatial index
+        predator_x: Predator x position
+        predator_y: Predator y position
+        detection_range: Distance at which boid detects predator
+        avoidance_strength: Base multiplier for avoidance force
+        
+    Returns:
+        Tuple (dvx, dvy) — velocity adjustment
+    """
+    boid_pos = flock_state.positions[boid_index]
+    
+    # Compute displacement from predator to boid (flee direction)
+    dx = boid_pos[0] - predator_x
+    dy = boid_pos[1] - predator_y
+    
+    # Compute distance
+    squared_distance = dx * dx + dy * dy
+    detection_range_squared = detection_range * detection_range
+    
+    # No avoidance if predator outside detection range
+    if squared_distance >= detection_range_squared:
+        return (0.0, 0.0)
+    
+    # Handle edge case: predator at exact same position
+    if squared_distance < 1e-10:
+        angle = np.random.uniform(0, 2 * np.pi)
+        return (
+            avoidance_strength * 10 * np.cos(angle),
+            avoidance_strength * 10 * np.sin(angle)
+        )
+    
+    # Scale avoidance inversely with distance
+    distance = squared_distance ** 0.5
+    scale = (detection_range - distance) / detection_range
+    
+    # Normalize direction and apply scaled strength
+    dvx = (dx / distance) * avoidance_strength * scale * detection_range
+    dvy = (dy / distance) * avoidance_strength * scale * detection_range
+    
+    return (dvx, dvy)
+
+
+def compute_all_rules_with_predator_kdtree(
+    boid_index: int,
+    flock_state: FlockState,
+    visual_range: float,
+    protected_range: float,
+    cohesion_factor: float,
+    alignment_factor: float,
+    separation_strength: float,
+    predator_x: Optional[float],
+    predator_y: Optional[float],
+    predator_detection_range: float,
+    predator_avoidance_strength: float
+) -> Tuple[float, float]:
+    """
+    Compute all four flocking rules (including predator avoidance).
+    
+    Combines the three standard rules with predator avoidance for
+    efficient single-pass computation.
+    
+    Args:
+        boid_index: Index of the current boid
+        flock_state: FlockState with spatial index
+        visual_range: Distance threshold for visibility
+        protected_range: Distance threshold for separation
+        cohesion_factor: Weight for cohesion
+        alignment_factor: Weight for alignment
+        separation_strength: Weight for separation
+        predator_x: Predator x position (None if no predator)
+        predator_y: Predator y position (None if no predator)
+        predator_detection_range: Distance for predator detection
+        predator_avoidance_strength: Weight for predator avoidance
+        
+    Returns:
+        Tuple (dvx, dvy) — combined velocity adjustment from all rules
+    """
+    # Get base flocking rules
+    dvx, dvy = compute_all_rules_kdtree(
+        boid_index, flock_state,
+        visual_range, protected_range,
+        cohesion_factor, alignment_factor, separation_strength
+    )
+    
+    # Add predator avoidance if predator exists
+    if predator_x is not None and predator_y is not None:
+        pred_dvx, pred_dvy = compute_predator_avoidance_kdtree(
+            boid_index, flock_state,
+            predator_x, predator_y,
+            predator_detection_range, predator_avoidance_strength
+        )
+        dvx += pred_dvx
+        dvy += pred_dvy
+    
+    return (dvx, dvy)

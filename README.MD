@@ -65,39 +65,45 @@ Each implementation prompt followed this pattern:
 | Visualization | ✅ Complete | Smoke tested |
 | Parameter tuning | ✅ Complete | N/A |
 | KDTree optimization | ✅ Complete | 13/13 |
-| Predator avoidance | 🔄 Next | — |
-| Quantitative analysis | ⏳ Pending | — |
+| Predator avoidance | ✅ Complete (validated) | 38/38 |
+| Quantitative analysis | 🔄 Next | — |
 
-**Total tests:** 71/71 passing (58 core + 13 optimization)
+**Total tests:** 109/109 passing
 
 **Points earned:**
 - Core assignment: ✅ 6/10 points
-- Tier 1 (KDTree): ✅ +2 points → **8/10 points**
+- Tier 1 (KDTree): ✅ +2 points
+- Tier 2 (Predator): ✅ +1 point → **9/10 points**
 
 ### Files Structure
 
 ```
 boids/
 ├── boid.py              # Boid data structure
-├── rules.py             # Separation, alignment, cohesion (naive)
+├── predator.py          # Predator class (Tier 2)
+├── rules.py             # Separation, alignment, cohesion, predator avoidance
 ├── rules_optimized.py   # KDTree-based rules (Tier 1)
 ├── flock.py             # Flock manager, SimulationParams
 ├── flock_optimized.py   # FlockOptimized with KDTree (Tier 1)
-├── visualization.py     # Pygame rendering
+├── visualization.py     # Pygame rendering with predator (Tier 2)
 ├── main.py              # Entry point
 ├── benchmark.py         # Performance comparison script (Tier 1)
 ├── test_boid.py         # Boid unit tests
 ├── test_rules.py        # Rules unit tests
 ├── test_flock.py        # Flock unit tests
-├── test_optimization.py # KDTree equivalence & benchmark tests (Tier 1)
+├── test_optimization.py # KDTree tests (Tier 1)
+├── test_predator.py     # Predator tests (Tier 2)
 ├── benchmark_results.png # Performance figure (Tier 1)
 └── GENAI_USAGE.md       # This document
 ```
 
 ### Next Steps
 
-1. **Tier 2**: Predator avoidance (→ 9/10 points)
-2. **Tier 3**: Quantitative analysis (→ 10/10 points)
+1. **Tier 3**: Quantitative analysis (→ 10/10 points)
+   - T3.1: Implement metric functions
+   - T3.2: Parameter sweep infrastructure
+   - T3.3: Heatmap visualization
+   - T3.4: Run experiment and document
 
 ---
 
@@ -665,33 +671,298 @@ boids/
 
 **Goal:** Introduce antagonistic agent that disrupts flocking behavior.
 
-#### T2.1: Predator Class Implementation (Pending)
+**Specification Requirements (from assignment):**
+- Implement a Predator class with position and velocity
+- Add a fourth rule (predator avoidance): boids should steer away from the predator with high priority, even overriding cohesion if necessary
+- The predator should move toward the center of the flock or track the nearest boid
+- Demonstrate that flocking behavior is disrupted when the predator is present and recovers when the predator is removed
+- Document behavioral differences: flock formation time, cohesion, dispersion patterns with vs. without predator
 
-**Objective:** Create `Predator` class with position, velocity, and hunting behavior.
+---
 
-**Predator behavior options:**
-- Track nearest boid
-- Move toward flock center of mass
-- Configurable speed (faster than boids?)
+#### T2.0: Planning and Design
 
-#### T2.2: Fourth Rule — Predator Avoidance (Pending)
+##### Design Decisions to Make
 
-**Objective:** Add high-priority avoidance rule.
+| Decision | Options | Considerations |
+|----------|---------|----------------|
+| Predator detection range | Same as visual_range / Larger / Configurable | Boids should probably detect predator from further away (survival instinct) |
+| Avoidance priority | Additive with other rules / Override cohesion / Complete override | Spec says "override cohesion if necessary" — suggests weighted priority, not complete override |
+| Predator hunting mode | Track nearest boid / Track flock center / Hybrid | Nearest boid = more chaotic; flock center = more realistic hunting |
+| Predator speed | Slower than boids / Same / Faster | If faster, boids can never escape; if slower, no real threat. Suggest slightly slower but persistent |
+| Predator boundary behavior | Same as boids / Ignore boundaries / Wrap around | Should probably follow same margin rules for consistency |
+| Predator visualization | Different color / Different shape / Larger size | Must be visually distinct from boids |
 
-**Design considerations:**
-- Should override cohesion when predator is near
-- Separate detection range for predator (larger than visual_range?)
-- Avoidance strength parameter
+##### Proposed Parameter Configuration
 
-#### T2.3: Behavioral Comparison (Pending)
+| Parameter | Proposed Value | Rationale |
+|-----------|----------------|-----------|
+| `predator_detection_range` | 100 (2x visual_range) | Boids detect predator from further away |
+| `predator_avoidance_strength` | 0.5 | Strong avoidance, but not complete override |
+| `predator_speed` | 2.5 | Slightly slower than boid max_speed (3.0) |
+| `predator_hunting_mode` | "center" | Track flock center of mass |
 
-**Objective:** Document flock behavior with/without predator.
+##### Potential Issues
 
-**Metrics to observe:**
-- Flock formation time
-- Cohesion changes
-- Dispersion patterns
-- Recovery after predator removed
+1. **Priority conflict**: How does predator avoidance interact with separation/alignment/cohesion?
+   - Risk: If simply additive, avoidance may be too weak when flock is tight
+   - Mitigation: Scale avoidance inversely with distance (stronger when closer)
+
+2. **Predator speed balance**: 
+   - Too fast → boids can never escape, simulation becomes chaotic
+   - Too slow → predator never catches up, no real threat
+   - Mitigation: Make predator slightly slower, but give it better "vision" of flock
+
+3. **Flock fragmentation**: 
+   - Risk: Flock may permanently fragment if predator stays in middle
+   - Mitigation: Predator tracks center, so flock can reform when it moves away
+
+4. **Boundary trapping**:
+   - Risk: Boid caught between predator and wall has nowhere to go
+   - Mitigation: Ensure boundary turn_factor is strong enough to prevent getting stuck
+
+5. **Integration with KDTree**:
+   - Risk: Forgetting to add predator avoidance to optimized version
+   - Mitigation: Test both implementations produce same behavior
+
+##### Edge Cases to Handle
+
+| Edge Case | Expected Behavior | Test Strategy |
+|-----------|-------------------|---------------|
+| Predator at exact same position as boid | Avoid division by zero; strong repulsion in random direction | Unit test with predator at boid position |
+| All boids equidistant from predator | Each boid moves directly away from predator | Unit test with symmetric arrangement |
+| Predator outside detection range | No avoidance applied | Unit test with far predator |
+| Single boid vs predator | Boid flees directly away | Unit test with one boid |
+| Boid between predator and wall | Boid slides along wall, doesn't get stuck | Integration test |
+| Predator at screen edge | Predator steered back like boids | Unit test boundary handling |
+| No boids (empty flock) | Predator stays stationary or moves randomly | Unit test empty flock |
+| Predator disabled mid-simulation | Flock should gradually reform | Behavioral test |
+
+##### Testing Plan
+
+**Unit Tests (test_predator.py):**
+
+1. **Predator class tests:**
+   - Instantiation with position/velocity
+   - `create_at_position()` factory method
+   - Speed property
+   - Position/velocity as numpy arrays
+
+2. **Predator movement tests:**
+   - `move_toward_center()` — moves toward flock center of mass
+   - `move_toward_nearest()` — moves toward closest boid
+   - Boundary handling (same as boids)
+   - Speed limits enforced
+   - Empty flock handling
+
+3. **Avoidance rule tests:**
+   - No avoidance when predator outside detection range
+   - Avoidance direction (away from predator)
+   - Avoidance strength scaling with distance
+   - Zero distance edge case (no division by zero)
+   - Avoidance magnitude limits
+
+4. **Integration tests:**
+   - Combined rules with predator avoidance
+   - Naive and KDTree produce same avoidance
+   - Flock update includes predator update
+
+**Behavioral Tests:**
+
+1. **Flock dispersal**: Predator entering flock causes visible scattering
+2. **Flock recovery**: Removing predator allows flock to reform
+3. **Predator pursuit**: Predator successfully follows flock movement
+4. **Survival**: Some boids should escape (predator slightly slower)
+
+##### Potential Pitfalls
+
+| Pitfall | How to Avoid |
+|---------|--------------|
+| Forgetting to add predator to visualization | Add to implementation checklist |
+| Predator avoidance not in KDTree version | Implement in both from start, test equivalence |
+| Avoidance too weak relative to cohesion | Test with high cohesion, ensure avoidance still works |
+| Avoidance too strong, boids scatter permanently | Test flock recovery when predator removed |
+| Division by zero when predator on top of boid | Add explicit distance check with minimum threshold |
+| Predator stuck at boundary | Apply same boundary rules as boids |
+| Infinite chase (predator never gives up) | This is intentional; predator always hunts |
+| Performance regression with predator | Predator is single entity, minimal overhead |
+
+##### Implementation Plan
+
+| Step | Description | Files Modified | Tests Added |
+|------|-------------|----------------|-------------|
+| T2.1 | Create `Predator` class with position, velocity, hunting behavior | `predator.py` (new) | 5-8 tests |
+| T2.2 | Implement `compute_predator_avoidance()` rule | `rules.py`, `rules_optimized.py` | 5-7 tests |
+| T2.3 | Add predator parameters to `SimulationParams` | `flock.py` | — |
+| T2.4 | Integrate predator into `Flock` and `FlockOptimized` | `flock.py`, `flock_optimized.py` | 3-5 tests |
+| T2.5 | Update visualization to render predator (different color/size) | `visualization.py` | Smoke test |
+| T2.6 | Add keyboard control to toggle predator (P key) | `visualization.py` | — |
+| T2.7 | Behavioral validation and comparison | — | Document observations |
+
+##### Success Criteria
+
+- [ ] Predator class instantiates and moves correctly
+- [ ] Avoidance rule produces correct steering direction
+- [ ] Avoidance strength scales appropriately with distance
+- [ ] All edge cases handled without crashes
+- [ ] Naive and KDTree versions produce identical avoidance
+- [ ] Visible flock dispersal when predator approaches
+- [ ] Visible flock recovery when predator removed/disabled
+- [ ] Predator successfully tracks flock (doesn't get lost)
+- [ ] No performance regression (maintains 60fps)
+- [ ] Keyboard toggle (P) enables/disables predator
+
+---
+
+#### T2.1: Predator Class Implementation
+
+**Prompt summary:** "Create a Predator class with position, velocity, and hunting behavior. Include methods for tracking flock center of mass and nearest boid. Handle boundary steering and speed limits like boids."
+
+**Code produced:** `predator.py`
+
+**Features implemented:**
+- `Predator` dataclass with x, y, vx, vy
+- Factory methods: `create_at_position()`, `create_random()`
+- Flock tracking: `compute_flock_center()`, `compute_nearest_boid()`
+- Steering: `steer_toward()`, `update_velocity_toward_center()`, `update_velocity_toward_nearest()`
+- Boundary handling: same logic as boids
+- Speed limits: configurable max/min
+
+**Tests:** 27/27 passed
+
+**Status:** ✅ Complete
+
+---
+
+#### T2.2: Predator Avoidance Rule
+
+**Prompt summary:** "Implement fourth rule for predator avoidance. Avoidance should scale inversely with distance. Handle edge case of predator at exact same position as boid."
+
+**Code produced:** 
+- `rules.py`: `compute_predator_avoidance()`
+- `rules_optimized.py`: `compute_predator_avoidance_kdtree()`, `compute_all_rules_with_predator_kdtree()`
+
+**Key design decisions:**
+- Avoidance scales with `(detection_range - distance) / detection_range`
+- Closer predator = stronger avoidance (inverse relationship)
+- Zero-distance edge case: random direction with strong magnitude
+- Detection range (100px) is 2x visual range for earlier warning
+
+**Avoidance formula:**
+```python
+scale = (detection_range - distance) / detection_range
+dvx = (dx / distance) * avoidance_strength * scale * detection_range
+```
+
+**Tests:** 11 additional tests (38/38 total in test_predator.py)
+
+**Status:** ✅ Complete
+
+---
+
+#### T2.3: Predator Parameters in SimulationParams
+
+**Parameters added:**
+
+| Parameter | Default Value | Description |
+|-----------|---------------|-------------|
+| `predator_detection_range` | 100 | 2x visual_range for early detection |
+| `predator_avoidance_strength` | 0.5 | Strong but not overwhelming |
+| `predator_speed` | 2.5 | Slightly slower than boids (3.0) |
+| `predator_hunting_strength` | 0.05 | How aggressively predator tracks flock |
+
+**Status:** ✅ Complete
+
+---
+
+#### T2.4: Integration into Flock Classes
+
+**Changes to `Flock` class:**
+- Added `predator: Optional[Predator]` attribute
+- Added `enable_predator` parameter to `__init__`
+- Modified `update_boid()` to include predator avoidance
+- Added `update_predator()` method
+- Added `toggle_predator()` method for runtime control
+
+**Changes to `FlockOptimized` class:**
+- Same changes as Flock class
+- Uses `compute_all_rules_with_predator_kdtree()` for efficiency
+
+**Tests:** All existing tests still pass (109/109)
+
+**Status:** ✅ Complete
+
+---
+
+#### T2.5: Visualization Updates
+
+**Changes to `visualization.py`:**
+- Added `RED` and `YELLOW` colors for predator
+- Added `draw_predator()` function (larger triangle with outline)
+- Updated `run_simulation()` to render predator
+- Added predator status display in UI
+
+**Visual design:**
+- Predator: Larger red triangle (size=15 vs boid size=8)
+- Yellow outline for emphasis
+- Status text shows "Predator: ON/OFF"
+
+**Status:** ✅ Complete
+
+---
+
+#### T2.6: Keyboard Controls
+
+**Added controls:**
+- `P`: Toggle predator on/off
+- `R`: Reset simulation (preserves predator state)
+
+**Command line:**
+```bash
+python main.py 50 --predator  # Start with predator enabled
+python visualization.py 100 --predator --naive  # Naive mode with predator
+```
+
+**Status:** ✅ Complete
+
+---
+
+#### T2.7: Behavioral Validation
+
+**User testing results:**
+
+- [x] Flock disperses when predator approaches
+- [x] Flock reforms when predator moves away / is disabled
+- [x] Predator successfully tracks flock center
+- [x] Boids flee in correct direction (away from predator)
+- [x] No performance regression (maintains 60fps)
+- [x] Toggle (P key) works correctly during simulation
+
+**User feedback:** "This looks pretty good for now. Behavior is as expected."
+
+**Status:** ✅ Complete
+
+---
+
+### Tier 2 Summary
+
+**Implementation complete.** All planned features working:
+
+| Feature | Status |
+|---------|--------|
+| Predator class | ✅ |
+| Predator avoidance rule | ✅ |
+| KDTree integration | ✅ |
+| Flock integration | ✅ |
+| Visualization (red triangle) | ✅ |
+| Keyboard toggle (P) | ✅ |
+| Behavioral validation | ✅ |
+
+**Tests:** 38/38 passed (test_predator.py)
+
+**Total project tests:** 109/109 passed
+
+**Points earned:** +1 (Tier 2) → **9/10 total**
 
 ---
 
@@ -699,45 +970,161 @@ boids/
 
 **Goal:** Systematic measurement of predator-prey dynamics.
 
+**Specification Requirements (from assignment):**
+- Track at least two metrics: average distance to predator, minimum distance to predator
+- Optionally track flock cohesion (standard deviation of positions)
+- Run parameter sweep varying two parameters (3-5 values each)
+- Run 5+ repetitions per parameter combination (different seeds)
+- Compute mean and standard deviation of metrics
+- Generate contour plot or heatmap visualization
+
+---
+
+#### T3.0: Planning and Design
+
+##### Metrics to Track
+
+| Metric | Formula | Interpretation |
+|--------|---------|----------------|
+| **Avg distance to predator** | `mean(dist(boid, predator))` across all boids, all frames | Higher = better escape |
+| **Min distance to predator** | `min(dist(boid, predator))` across all boids, all frames | Higher = safer (no close calls) |
+| **Flock cohesion** | `std(boid positions)` | Lower = tighter flock |
+| **Survival proxy** | Frames where min_dist > threshold | Higher = more successful evasion |
+
+##### Parameter Sweep Design
+
+**Primary sweep:** Predator speed vs Avoidance strength
+
+| Parameter | Values | Rationale |
+|-----------|--------|-----------|
+| `predator_speed` | [1.5, 2.0, 2.5, 3.0, 3.5] | Range from slower to faster than boids |
+| `predator_avoidance_strength` | [0.1, 0.3, 0.5, 0.7, 0.9] | Weak to strong avoidance |
+
+**Grid:** 5 × 5 = 25 parameter combinations
+
+**Repetitions:** 5 runs per combination with different seeds
+
+**Total runs:** 125 simulations
+
+**Frames per run:** 500 (about 8 seconds at 60fps)
+
+##### Potential Issues
+
+1. **Long runtime:** 125 runs × 500 frames could be slow
+   - Mitigation: Use headless mode, KDTree optimization, parallel execution
+
+2. **Statistical noise:** Stochastic initialization means high variance
+   - Mitigation: 5+ repetitions, report mean ± std
+
+3. **Metric interpretation:** What does "better" mean?
+   - Higher avg distance = boids escape well
+   - But: very high avoidance might fragment flock permanently
+   - Need to consider trade-offs
+
+4. **Edge cases in metrics:**
+   - Empty flock: division by zero
+   - Predator disabled: infinite distance
+   - Mitigation: Only track when predator is active
+
+5. **Visualization clarity:** Heatmap needs good color scale
+   - Mitigation: Use diverging colormap, add contour lines
+
+##### Edge Cases to Handle
+
+| Edge Case | Expected Behavior | Handling |
+|-----------|-------------------|----------|
+| Frame with predator disabled | Skip metric collection | Check `predator is not None` |
+| Single boid | Cohesion undefined (std=0) | Return 0 or skip |
+| All boids at same position | Cohesion = 0 | Valid edge case |
+| Predator catches boid (dist=0) | Min distance = 0 | Record as failure |
+
+##### Testing Plan
+
+**Unit Tests (test_analysis.py):**
+
+1. **Metric calculation tests:**
+   - `compute_avg_distance_to_predator()` correctness
+   - `compute_min_distance_to_predator()` correctness
+   - `compute_flock_cohesion()` correctness
+   - Edge case: empty flock
+   - Edge case: single boid
+
+2. **Parameter sweep tests:**
+   - Single run produces valid metrics
+   - Multiple seeds produce different results
+   - Results aggregation (mean/std) correct
+
+3. **Data collection tests:**
+   - Metrics recorded each frame
+   - Final summary computed correctly
+
+**Integration Tests:**
+- Full sweep with small grid (2×2, 2 reps) completes without error
+- Output files generated correctly
+
+##### Potential Pitfalls
+
+| Pitfall | How to Avoid |
+|---------|--------------|
+| Forgetting to enable predator during sweep | Assert predator exists before run |
+| Not resetting simulation between runs | Create fresh Flock each run |
+| Accumulating metrics incorrectly | Clear metrics list each run |
+| Slow execution blocking testing | Add progress indicator, use small test grid |
+| Heatmap axes swapped | Label clearly, verify with known values |
+| Colorbar scale hiding patterns | Use appropriate vmin/vmax |
+
+##### Implementation Plan
+
+| Step | Description | Files | Tests |
+|------|-------------|-------|-------|
+| T3.1 | Implement metric functions | `metrics.py` (new) | 5-8 tests |
+| T3.2 | Create single-run data collector | `metrics.py` | 2-3 tests |
+| T3.3 | Implement parameter sweep runner | `analysis.py` (new) | 3-5 tests |
+| T3.4 | Generate heatmap visualization | `analysis.py` | Manual verify |
+| T3.5 | Run full experiment | — | — |
+| T3.6 | Document results and insights | `GENAI_USAGE.md` | — |
+
+##### Success Criteria
+
+- [ ] Metric functions compute correct values
+- [ ] Parameter sweep runs all combinations
+- [ ] Multiple seeds produce varying results
+- [ ] Mean and std computed for each combination
+- [ ] Heatmap generated with clear labels
+- [ ] Results show interpretable patterns
+- [ ] No crashes or edge case failures
+- [ ] Documentation includes figure and analysis
+
+##### Expected Results (Hypotheses)
+
+1. **High predator speed + low avoidance** → Low avg distance (caught often)
+2. **Low predator speed + high avoidance** → High avg distance (easy escape)
+3. **Moderate values** → Interesting trade-offs
+4. **Very high avoidance** → May hurt cohesion (flock fragments)
+
+---
+
 #### T3.1: Metric Tracking Implementation (Pending)
 
-**Metrics to implement:**
-- Average distance to predator (mean across all boids, all frames)
-- Minimum distance to predator (closest approach)
-- Flock cohesion (standard deviation of boid positions)
+**Status:** Awaiting implementation
+
+---
 
 #### T3.2: Parameter Sweep Infrastructure (Pending)
 
-**Objective:** Automated experiments varying two parameters.
+**Status:** Awaiting T3.1
 
-**Candidate parameter pairs:**
-- Predator speed vs predator avoidance weight
-- Predator speed vs boid max_speed
-- Avoidance weight vs cohesion factor
+---
 
-**Requirements:**
-- 3-5 values per parameter
-- 5+ repetitions per combination (different seeds)
-- Compute mean and std of metrics
+#### T3.3: Visualization — Heatmap (Pending)
 
-#### T3.3: Visualization (Pending)
+**Status:** Awaiting T3.2
 
-**Objective:** Generate publication-quality figures.
+---
 
-**Figure types:**
-- Contour plot / heatmap of metrics vs parameters
-- Possibly 3D surface plot
+#### T3.4: Run Experiment and Document (Pending)
 
-#### T3.4: Interactive Parameter Exploration (Pending)
-
-**Objective:** Build interactive simulation for real-time parameter tuning.
-
-**Implementation options:**
-- React-based web interface with sliders
-- Parameter controls embedded in pygame
-- Jupyter notebook with ipywidgets
-
-**Purpose:** Enable rapid exploration for Phase 3 Parameter Exploration requirement.
+**Status:** Awaiting T3.3
 
 ---
 

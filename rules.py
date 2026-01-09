@@ -178,3 +178,68 @@ def compute_cohesion(
     dvy = (avg_y - boid.y) * centering_factor
     
     return (dvx, dvy)
+
+
+def compute_predator_avoidance(
+    boid: Boid,
+    predator_x: float,
+    predator_y: float,
+    detection_range: float,
+    avoidance_strength: float
+) -> Tuple[float, float]:
+    """
+    Compute predator avoidance steering: boid flees from nearby predator.
+    
+    This is the fourth rule, added for Tier 2. Boids detect the predator
+    from a greater distance than they detect each other, and avoidance
+    has high priority to override cohesion when necessary.
+    
+    The avoidance force scales inversely with distance — closer predator
+    means stronger avoidance.
+    
+    Args:
+        boid: The current boid to compute steering for
+        predator_x: Predator x position
+        predator_y: Predator y position
+        detection_range: Distance at which boid detects predator (pixels)
+        avoidance_strength: Base multiplier for avoidance force
+        
+    Returns:
+        Tuple (dvx, dvy) — velocity adjustment to apply
+        
+    Edge cases:
+        - Predator outside detection range: returns (0, 0)
+        - Predator at exact same position: returns strong random direction
+    """
+    # Compute displacement from predator to boid (flee direction)
+    dx = boid.x - predator_x
+    dy = boid.y - predator_y
+    
+    # Compute distance
+    squared_distance = dx * dx + dy * dy
+    detection_range_squared = detection_range * detection_range
+    
+    # No avoidance if predator outside detection range
+    if squared_distance >= detection_range_squared:
+        return (0.0, 0.0)
+    
+    # Handle edge case: predator at exact same position
+    # Apply strong avoidance in random direction
+    if squared_distance < 1e-10:
+        import numpy as np
+        angle = np.random.uniform(0, 2 * np.pi)
+        return (
+            avoidance_strength * 10 * np.cos(angle),
+            avoidance_strength * 10 * np.sin(angle)
+        )
+    
+    # Scale avoidance inversely with distance
+    # Closer predator = stronger avoidance
+    distance = squared_distance ** 0.5
+    scale = (detection_range - distance) / detection_range
+    
+    # Normalize direction and apply scaled strength
+    dvx = (dx / distance) * avoidance_strength * scale * detection_range
+    dvy = (dy / distance) * avoidance_strength * scale * detection_range
+    
+    return (dvx, dvy)
