@@ -13,28 +13,31 @@ from rules import compute_separation, compute_alignment, compute_cohesion
 
 @dataclass
 class SimulationParams:
-    """Configuration parameters for the simulation."""
+    """Configuration parameters for the simulation.
+    
+    Default values based on Cornell University Boids reference.
+    """
     
     # Simulation bounds
     width: float = 800
     height: float = 600
     
     # Perception ranges
-    visual_range: float = 75
-    protected_range: float = 12
+    visual_range: float = 20
+    protected_range: float = 2
     
     # Speed constraints
-    max_speed: float = 6.0
+    max_speed: float = 3.0
     min_speed: float = 2.0
     
     # Rule weights
-    cohesion_factor: float = 0.005
+    cohesion_factor: float = 0.0005
     alignment_factor: float = 0.05
     separation_strength: float = 0.05
     
     # Boundary handling
-    margin: float = 100
-    turn_factor: float = 0.5
+    margin: float = 50
+    turn_factor: float = 0.2
 
 
 class Flock:
