@@ -49,9 +49,9 @@ def main():
     
     # Run simulation
     run_simulation(
-        num_boids=50,
+        num_boids=200,
         params=params,
-        fps=60,
+        fps=100,
         show_fps=True
     )
 

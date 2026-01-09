@@ -43,7 +43,8 @@ class TestBoundaryHandling:
     
     def test_no_steering_in_center(self):
         """Boid in center of screen has no boundary steering."""
-        flock = Flock(num_boids=0)
+        params = SimulationParams(width=800, height=600, margin=100)
+        flock = Flock(num_boids=0, params=params)
         boid = Boid(x=400, y=300, vx=0, vy=0)  # Center of 800x600
         
         dvx, dvy = flock.apply_boundary_steering(boid)
@@ -53,7 +54,8 @@ class TestBoundaryHandling:
     
     def test_left_margin_steering(self):
         """Boid near left edge steers right."""
-        flock = Flock(num_boids=0)
+        params = SimulationParams(width=800, height=600, margin=100, turn_factor=0.5)
+        flock = Flock(num_boids=0, params=params)
         boid = Boid(x=50, y=300, vx=0, vy=0)  # Inside left margin (100)
         
         dvx, dvy = flock.apply_boundary_steering(boid)
@@ -63,7 +65,8 @@ class TestBoundaryHandling:
     
     def test_right_margin_steering(self):
         """Boid near right edge steers left."""
-        flock = Flock(num_boids=0)
+        params = SimulationParams(width=800, height=600, margin=100, turn_factor=0.5)
+        flock = Flock(num_boids=0, params=params)
         boid = Boid(x=750, y=300, vx=0, vy=0)  # Inside right margin (800-100=700)
         
         dvx, dvy = flock.apply_boundary_steering(boid)
@@ -73,7 +76,8 @@ class TestBoundaryHandling:
     
     def test_top_margin_steering(self):
         """Boid near top edge steers down (increasing y)."""
-        flock = Flock(num_boids=0)
+        params = SimulationParams(width=800, height=600, margin=100, turn_factor=0.5)
+        flock = Flock(num_boids=0, params=params)
         boid = Boid(x=400, y=50, vx=0, vy=0)  # Inside top margin
         
         dvx, dvy = flock.apply_boundary_steering(boid)
@@ -83,7 +87,8 @@ class TestBoundaryHandling:
     
     def test_bottom_margin_steering(self):
         """Boid near bottom edge steers up (decreasing y)."""
-        flock = Flock(num_boids=0)
+        params = SimulationParams(width=800, height=600, margin=100, turn_factor=0.5)
+        flock = Flock(num_boids=0, params=params)
         boid = Boid(x=400, y=550, vx=0, vy=0)  # Inside bottom margin (600-100=500)
         
         dvx, dvy = flock.apply_boundary_steering(boid)
@@ -93,7 +98,8 @@ class TestBoundaryHandling:
     
     def test_corner_steering(self):
         """Boid in corner gets steering in both dimensions."""
-        flock = Flock(num_boids=0)
+        params = SimulationParams(width=800, height=600, margin=100, turn_factor=0.5)
+        flock = Flock(num_boids=0, params=params)
         boid = Boid(x=50, y=50, vx=0, vy=0)  # Top-left corner
         
         dvx, dvy = flock.apply_boundary_steering(boid)
@@ -103,7 +109,7 @@ class TestBoundaryHandling:
     
     def test_turn_factor_magnitude(self):
         """Boundary steering magnitude matches turn_factor parameter."""
-        params = SimulationParams(turn_factor=0.8)
+        params = SimulationParams(margin=100, turn_factor=0.8)
         flock = Flock(num_boids=0, params=params)
         boid = Boid(x=50, y=300, vx=0, vy=0)
         
@@ -117,7 +123,8 @@ class TestSpeedLimits:
     
     def test_speed_within_limits_unchanged(self):
         """Speed within limits is not modified."""
-        flock = Flock(num_boids=0)
+        params = SimulationParams(min_speed=2.0, max_speed=6.0)
+        flock = Flock(num_boids=0, params=params)
         boid = Boid(x=100, y=100, vx=3.0, vy=4.0)  # Speed = 5
         original_vx, original_vy = boid.vx, boid.vy
         
@@ -174,7 +181,11 @@ class TestUpdateBoid:
     
     def test_isolated_boid_maintains_velocity(self):
         """Isolated boid in center maintains its velocity direction."""
-        flock = Flock(num_boids=0)
+        params = SimulationParams(
+            width=800, height=600, margin=100,
+            min_speed=2.0, max_speed=6.0
+        )
+        flock = Flock(num_boids=0, params=params)
         # Place boid in center with valid speed
         boid = Boid(x=400, y=300, vx=3.0, vy=4.0)  # Speed = 5
         flock.boids = [boid]
@@ -187,7 +198,8 @@ class TestUpdateBoid:
     
     def test_position_updates_by_velocity(self):
         """Position updates by velocity after update."""
-        flock = Flock(num_boids=0)
+        params = SimulationParams(width=800, height=600, margin=100)
+        flock = Flock(num_boids=0, params=params)
         boid = Boid(x=400, y=300, vx=3.0, vy=4.0)
         flock.boids = [boid]
         
@@ -199,7 +211,11 @@ class TestUpdateBoid:
     
     def test_boid_near_edge_steered_inward(self):
         """Boid near edge is steered back inward."""
-        flock = Flock(num_boids=0)
+        params = SimulationParams(
+            width=800, height=600, margin=100, turn_factor=0.5,
+            min_speed=2.0, max_speed=6.0
+        )
+        flock = Flock(num_boids=0, params=params)
         # Boid moving toward left edge
         boid = Boid(x=50, y=300, vx=-3.0, vy=0)
         flock.boids = [boid]
