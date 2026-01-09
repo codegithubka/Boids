@@ -22,27 +22,28 @@ from flock import SimulationParams
 def main():
     """Run the Boids simulation with default parameters."""
     
-    # Configure simulation parameters (Cornell University reference values)
+    # Configure simulation parameters
+    # Based on Cornell reference, tuned for 800x600 screen
     params = SimulationParams(
         # Simulation bounds
         width=800,
         height=600,
         
         # Perception ranges
-        visual_range=20,
-        protected_range=2,
+        visual_range=50,
+        protected_range=12,
         
         # Speed constraints
         max_speed=3.0,
         min_speed=2.0,
         
         # Rule weights
-        cohesion_factor=0.0005,
-        alignment_factor=0.05,
-        separation_strength=0.05,
+        cohesion_factor=0.002,
+        alignment_factor=0.06,
+        separation_strength=0.15,
         
         # Boundary handling
-        margin=50,
+        margin=75,
         turn_factor=0.2
     )
     

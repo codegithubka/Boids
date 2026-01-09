@@ -15,7 +15,8 @@ from rules import compute_separation, compute_alignment, compute_cohesion
 class SimulationParams:
     """Configuration parameters for the simulation.
     
-    Default values based on Cornell University Boids reference.
+    Default values tuned for 800x600 screen based on Cornell reference
+    with adjustments for visual range and cohesion strength.
     """
     
     # Simulation bounds
@@ -23,20 +24,20 @@ class SimulationParams:
     height: float = 600
     
     # Perception ranges
-    visual_range: float = 20
-    protected_range: float = 2
+    visual_range: float = 50
+    protected_range: float = 12
     
     # Speed constraints
     max_speed: float = 3.0
     min_speed: float = 2.0
     
     # Rule weights
-    cohesion_factor: float = 0.0005
-    alignment_factor: float = 0.05
-    separation_strength: float = 0.05
+    cohesion_factor: float = 0.002
+    alignment_factor: float = 0.06
+    separation_strength: float = 0.15
     
     # Boundary handling
-    margin: float = 50
+    margin: float = 75
     turn_factor: float = 0.2
 
 
